@@ -29,7 +29,8 @@ class DepiDataset(Dataset):
 
     def __init__(self, datadir, substring=None, transform=None):
         self.filenames = list(self.find_files(datadir, substring))
-        self.labels = [os.path.basename(filename)[8:11] for filename in self.filenames]
+        self.labels = [os.path.basename(filename)[9:12] for filename in self.filenames]
+        self.images = np.stack([nibabel.load(filename).get_data() for filename in self.filenames])
         self.transform = transform
     
     def __len__(self):
@@ -43,11 +44,10 @@ class DepiDataset(Dataset):
         raise ValueError("Couldn't find label for {}".format(self.filenames[num]))
 
     def get_image(self, num):
-        filename = self.filenames[num]
-        return nibabel.load(filename)
+        return self.images[num]
 
     def __getitem__(self, num):
-        result = self.get_image(num).get_data(), self.get_label(num)
+        result = self.get_image(num), self.get_label(num)
         if self.transform is not None:
             result = self.transform(result)
         return result
