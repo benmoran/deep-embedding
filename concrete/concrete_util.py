@@ -3,6 +3,8 @@ import plotly.graph_objs as go
 import plotly.offline as py
 import time
 
+import pandas as pd
+
 from keras import backend as K
 from keras.datasets import mnist
 from plotly import tools
@@ -23,6 +25,23 @@ def load_large_dataset(file_name):
     return variable
 
 
+def get_processed_covariates(filename):
+    df = pd.read_hdf(filename)
+    # pd.read_hdf("/data/code/deep-embedding/concrete/covariates.h5")
+    # PAC_ID  Label   Age  Gender          TIV  Site
+    
+    mu, std = df.Age.mean(), df.Age.std()
+    df['age'] = (df.Age - mu)/std
+    
+    mu, std = df.TIV.mean(), df.TIV.std()
+    df['tiv'] = (df.TIV - mu)/std
+    for level in sorted(df.Site.unique()):
+        df['site{}'.format(level)] = (df.Site == level)
+    for level in sorted(df.Gender.unique()):
+        df['gender{}'.format(level)] = (df.Gender == level)
+    return df.loc[:, 'age':].astype('f').values
+    
+
 def get_processed_mnist():
     """
     Get normalized MNIST datasets with correct shapes (Tensorflow style).
@@ -42,7 +61,7 @@ def get_processed_pac(batch_size=100, split_frac=0.9):
     # imageslices.h5 is X[:,:,:,55:58,0] from Pawel's images.h5
     X = load_large_dataset('imageslices')
     Y = load_large_dataset('labels')
-    
+    W = get_processed_covariates('covariates.h5')
     np.random.seed(9999) #seed fixed for reproducibility
     mask = np.random.choice(len(X),
                             batch_size *
@@ -52,11 +71,14 @@ def get_processed_pac(batch_size=100, split_frac=0.9):
 
     training_set = X[mask]
     training_labels = Y[mask]
+    training_extra = W[mask]    
 
     validation_set = X[~mask]
     validation_labels = Y[~mask]
-
-    return (training_set, training_labels), (validation_set, validation_labels)
+    validation_extra = W[mask]
+    
+    return (training_set, training_labels, training_extra), \
+        (validation_set, validation_labels, validation_extra)
 
 def get_one_hot_vector(idx, dim=10):
     """
